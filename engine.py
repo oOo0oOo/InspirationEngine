@@ -1,11 +1,47 @@
-import pygame
 import time
+from threading import Thread
 
+import pygame
 from pygame.locals import QUIT, KEYDOWN, K_LEFT, K_RIGHT, K_SPACE, K_DOWN
+
 from geometry import *
 
 # Init pygame
 pygame.init()
+
+# A Stoppable thread
+class StoppableMultiExecThread(Thread): 
+	def __init__ (self, target):
+		Thread.__init__(self)
+		self.target = target
+		self.cont = True
+
+	def run(self):
+		while self.cont:
+			res = self.target()
+			if not res:
+				self.cont = False
+				return
+
+	def stop(self):
+		self.cont = False
+
+
+class Canvas(Thread): 
+	def __init__ (self):
+		Thread.__init__(self)
+
+		self.stop_flag = False
+
+	def run(self):
+		while not self.stop_flag:
+			res = self.target()
+			if not res:
+				self.cont = False
+				return
+
+	def stop(self):
+		self.stop_flag = True
 
 
 class DisplayedObject(object):
@@ -37,26 +73,26 @@ class DisplayedImage(DisplayedObject):
 		DisplayedObject.__init__(self, position, moving = Point(0,0), 
 				rotation = rotation, stay = stay, fade = fade)
 
+		self.size_x = size_x
 		self.image = image
 		self.size = image.get_size()
-		if size_x:
-			factor = float(size_x)/self.size[0]
-			self.size = [s * factor for s in self.size]
 
 	def on_tick(self):
-		super(DisplayedObject, self).on_tick()
+		super(DisplayedImage, self).on_tick()
 
 	def draw(self, window):
-		scale = float(size_x) / self.size[0]
+		if self.size_x:
+			scale = float(self.size_x) / self.size[0]
+		else:
+			scale = 1
 		# Rotozoom image
 		rotated = pygame.transform.rotozoom(self.image, self.rotation, scale)
 
 		#get the rect of the rotated surf and set it's center to the oldCenter
 		rotRect = rotated.get_rect()
-		point = point.transform(t_vect)
-		rotRect.center = (point.x, point.y)
-
+		rotRect.center = (self.position.x, self.position.y)
 		window.blit(rotated, rotRect)
+		return window
 
 class Canvas(object):
 	def __init__(self, size = (1000, 800), caption = 'Python Canvas', max_fps = 40):
@@ -77,65 +113,57 @@ class Canvas(object):
 			'bright_green': pygame.Color(20, 245, 18),
 			'blue': pygame.Color(5, 10, 145)
 		}
-		
 
 		self.displayed = []
+		self.thread = False
 
 	def start(self):
-		while True:
-			self.on_tick()
-			self.fpsClock.tick(self.max_fps)
+		if not self.thread:
+			self.thread = StoppableMultiExecThread(self.on_tick)
+			self.thread.start()
+
+	def stop(self):
+		if self.thread:
+			self.thread.stop()
+			self.thread.join()
+			del self.thread
+			self.thread = False
+			return True
+
+		return False
 
 	def add_image(self, image, position, **args):
+		stopped = self.stop()
 		self.displayed.append(DisplayedImage(image, position, **args))
+		if stopped: self.start()
+
+	def close(self):
+		self.stop()
+		pygame.quit()
+		return
 
 	def on_tick(self):
-
 		self.window.fill(self.colors['black'])
 
 		# Draw all objects
-		[o.draw(self.window) for o in self.displayed]
+		for o in self.displayed:
+			o.draw(self.window)
 
-		'''
-					b1 = pygame.Rect(0, 0, general_params['border_size'], game_size[1])
-					b2 = pygame.Rect(game_size[0] - general_params['border_size'], 0, general_params['border_size'], game_size[1])
-					pygame.draw.rect(window, green, b1)
-					pygame.draw.rect(window, green, b2)
-				'''
-		'''pygame.draw.line(window, white, (middle, m), (middle, m+80), 10)'''
-
-		'''pygame.draw.circle(window, red, (int(point.x), int(y)), 1, 0)'''
-		'''
-			draw_text(str(dist_left) + 'm', Point(game_size[0] - general_params['border_size'], 60), 'helvetica', 25, white)
-		'''
 		#Handle events (single press, not hold)
-		quitted = False
 		for event in pygame.event.get():
 			if event.type == QUIT:
-				pygame.quit()
-				quitted = True
-			'''
-			elif event.type == KEYDOWN and event.key == K_SPACE:
-				game.board.pump()
-			'''
-		
-		if not quitted:
-			# Check for pressed leaning keys
-			'''
-				keys = pygame.key.get_pressed()
-				if keys[K_LEFT]:
-					game.board.lean(True)
-				if keys[K_RIGHT]:
-					game.board.lean(False)
-				if keys[K_DOWN]:
-					game.board.break_board()
-			'''
-			pygame.display.update()
+				print 'QUIT'
+				return False
 
+		pygame.display.update()
+		# Update state of all objects
+		[o.on_tick() for o in self.displayed]
 
-			# Update state of all objects
-			[o.on_tick() for o in self.displayed]
+		self.fpsClock.tick(self.max_fps)
+
+		return True
 
 if __name__ == '__main__':
 	canvas = Canvas()
-	canvas.start_display()
+	canvas.start()
+
