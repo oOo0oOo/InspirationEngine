@@ -9,6 +9,10 @@ from geometry import *
 # Init pygame
 pygame.init()
 
+
+# Fonts
+std_font = pygame.font.SysFont('helvetica', 25)
+
 # A Stoppable thread
 class StoppableMultiExecThread(Thread): 
 	def __init__ (self, target):
@@ -51,7 +55,6 @@ class DisplayedObject(object):
 		self.rotation = rotation
 		self.stay = stay
 		self.fade = fade
-
 		self.age = 0
 
 	def on_tick(self):
@@ -59,7 +62,7 @@ class DisplayedObject(object):
 		self.position = self.position.transform(self.moving)
 
 	def get_intensity(self):
-		if self.age < self.stay:
+		if self.age <= self.stay:
 			return 1.0
 		elif self.age > self.stay + self.fade:
 			return 0.0
@@ -70,28 +73,41 @@ class DisplayedImage(DisplayedObject):
 	def __init__(self, image, position, moving = Point(0,0), rotation = 0, 
 				stay = 100, fade = 20, size_x = False):
 
-		DisplayedObject.__init__(self, position, moving = Point(0,0), 
+		DisplayedObject.__init__(self, position, moving = moving, 
 				rotation = rotation, stay = stay, fade = fade)
 
-		self.size_x = size_x
-		self.image = image
-		self.size = image.get_size()
-
-	def on_tick(self):
-		super(DisplayedImage, self).on_tick()
-
-	def draw(self, window):
-		if self.size_x:
-			scale = float(self.size_x) / self.size[0]
+		if size_x:
+			scale = float(size_x) / image.get_size()[0]
 		else:
 			scale = 1
 		# Rotozoom image
-		rotated = pygame.transform.rotozoom(self.image, self.rotation, scale)
+		self.image = pygame.transform.rotozoom(image, self.rotation, scale)
 
+	def draw(self, window):
 		#get the rect of the rotated surf and set it's center to the oldCenter
-		rotRect = rotated.get_rect()
+		rotRect = self.image.get_rect()
 		rotRect.center = (self.position.x, self.position.y)
-		window.blit(rotated, rotRect)
+		window.blit(self.image, rotRect)
+		return window
+
+class DisplayedText(DisplayedObject):
+	def __init__(self, text, position, moving = Point(0,0), rotation = 0, 
+				stay = 100, fade = 20, font = std_font, color = (245, 245, 245)):
+		DisplayedObject.__init__(self, position, moving = moving, 
+				rotation = rotation, stay = stay, fade = fade)
+
+		# Rotozoom image
+		self.text = font.render(text, 1, pygame.Color(color[0], color[1], color[2]))
+		
+
+	def draw(self, window):
+		# Center on point
+		rect = self.text.get_rect()
+		# position = position.transform(t_vect)
+		rect.center = (self.position.x, self.position.y)
+
+		window.blit(self.text, rect)
+
 		return window
 
 class BaseCanvas(object):
@@ -135,6 +151,18 @@ class BaseCanvas(object):
 	def add_image(self, image, position, **args):
 		self.displayed.append(DisplayedImage(image, position, **args))
 
+	def add_text(self, text, position, **args):
+		self.displayed.append(DisplayedText(text, position, **args))
+
+	def draw_text(self, text, position, font = std_font):
+		label = font.render(text, 1, self.colors['white'])
+		# Center on point
+		rect = label.get_rect()
+		# position = position.transform(t_vect)
+		rect.center = (position.x, position.y)
+
+		self.window.blit(label, rect)
+
 	def close(self):
 		pygame.quit()
 
@@ -145,6 +173,10 @@ class BaseCanvas(object):
 		for o in self.displayed:
 			o.draw(self.window)
 
+		# Show fps
+		fps = str(int(self.fpsClock.get_fps())) + ' fps'
+		self.draw_text(fps, Point(100, 20))
+
 		#Handle events (single press, not hold)
 		for event in pygame.event.get():
 			if event.type == QUIT:
@@ -153,6 +185,14 @@ class BaseCanvas(object):
 		pygame.display.update()
 		# Update state of all objects
 		[o.on_tick() for o in self.displayed]
+
+		# Delete run out displayed objects
+		for i, o in enumerate(self.displayed):
+			if o.age > o.stay + o.fade:
+				# can only delete one per tick
+				del self.displayed[i]
+				break
+
 
 		self.tick += 1
 		return True
