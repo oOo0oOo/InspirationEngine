@@ -125,8 +125,11 @@ class BaseCanvas(object):
 		return True
 
 	def start(self):
-		while self.repeat_func():
-			self.on_tick()
+		running = True
+		while running:
+			running = self.repeat_func()
+			if not self.on_tick():
+				break
 			self.fpsClock.tick(self.max_fps)
 
 	def add_image(self, image, position, **args):
@@ -145,7 +148,6 @@ class BaseCanvas(object):
 		#Handle events (single press, not hold)
 		for event in pygame.event.get():
 			if event.type == QUIT:
-				print 'QUIT'
 				return False
 
 		pygame.display.update()
@@ -153,6 +155,7 @@ class BaseCanvas(object):
 		[o.on_tick() for o in self.displayed]
 
 		self.tick += 1
+		return True
 
 class CanvasExample(BaseCanvas):
 	def __init__(self, size = (1000, 800), caption = 'Python Canvas', max_fps = 40):

@@ -4,6 +4,7 @@ import random
 from urllib import FancyURLopener
 import urllib2
 import simplejson
+from geometry import Point
 
 import cStringIO
 
@@ -18,24 +19,31 @@ try:
 
 # If file not found, source external resource
 except IOError, e:
-	word_site = "http://www.freebsd.org/cgi/cvsweb.cgi/src/share/dict/web2?rev=1.12;content-type=text%2Fplain"
-
+	word_site = 'http://www.alexdadgar.com/projects/rank/api?top=5000'
 	response = urllib2.urlopen(word_site)
-	txt = response.read()
-	word_list = txt.splitlines()
+	txt = simplejson.load(response)
+	word_list = [a.keys()[0] for a in txt]
 
 	# Save words.txt file
-	open('words.txt','w+').write(txt)
+	open('words.txt','w+').write('\n'.join(word_list))
 
 def randomWord():
 	return random.choice(word_list)
+
+def randomSentence(num = (1, 4)):
+	return ' '.join([randomWord() for i in range(random.randrange(num[0], num[1]))])
+
+def randomPoint(size = (1000, 800)):
+	return Point(random.randrange(size[0]), random.randrange(size[0]))
 
 def googleImage(search_term):
 	'''
 		Image search using Google Images inspired by: 
 		http://stackoverflow.com/questions/11242967/python-search-with-image-google-images
 	'''
+	# Replace spaces ' ' in search term for '%20' in order to comply with request
 	search_term = search_term.replace(' ','%20')
+
 	# construct url
 	url = ('https://ajax.googleapis.com/ajax/services/search/images?' + 'v=1.0&q='+search_term+'&start=0&userip=MyIP')
 	request = urllib2.Request(url, None, {'Referer': 'testing'})
@@ -58,16 +66,5 @@ def googleImage(search_term):
 	return pygame.image.load(file)
 
 if __name__ == '__main__':
-	# Define search term
-	searchTerm = "Monkey Fork"
-	searchTerm = ' '.join([randomWord() for i in range(random.randrange(1, 3))])
-
-	print searchTerm
-
-	# Replace spaces ' ' in search term for '%20' in order to comply with request
-	searchTerm = searchTerm.replace(' ','%20')
-
-	print searchTerm
-
-	img = googleImage(searchTerm)
-	print img
+	# Google Image with random search term
+	img = googleImage(randomSentence())
