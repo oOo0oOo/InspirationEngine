@@ -94,7 +94,7 @@ class DisplayedImage(DisplayedObject):
 		window.blit(rotated, rotRect)
 		return window
 
-class Canvas(object):
+class BaseCanvas(object):
 	def __init__(self, size = (1000, 800), caption = 'Python Canvas', max_fps = 40):
 		# Setup some stuff
 		self.max_fps = max_fps
@@ -114,33 +114,26 @@ class Canvas(object):
 			'blue': pygame.Color(5, 10, 145)
 		}
 
+		self.tick = 0
 		self.displayed = []
-		self.thread = False
+
+	def repeat_func(self):
+		'''
+			Implement function in child class.
+			Return False to stop Canvas.
+		'''
+		return True
 
 	def start(self):
-		if not self.thread:
-			self.thread = StoppableMultiExecThread(self.on_tick)
-			self.thread.start()
-
-	def stop(self):
-		if self.thread:
-			self.thread.stop()
-			self.thread.join()
-			del self.thread
-			self.thread = False
-			return True
-
-		return False
+		while self.repeat_func():
+			self.on_tick()
+			self.fpsClock.tick(self.max_fps)
 
 	def add_image(self, image, position, **args):
-		stopped = self.stop()
 		self.displayed.append(DisplayedImage(image, position, **args))
-		if stopped: self.start()
 
 	def close(self):
-		self.stop()
 		pygame.quit()
-		return
 
 	def on_tick(self):
 		self.window.fill(self.colors['black'])
@@ -159,11 +152,19 @@ class Canvas(object):
 		# Update state of all objects
 		[o.on_tick() for o in self.displayed]
 
-		self.fpsClock.tick(self.max_fps)
+		self.tick += 1
 
+class CanvasExample(BaseCanvas):
+	def __init__(self, size = (1000, 800), caption = 'Python Canvas', max_fps = 40):
+		BaseCanvas.__init__(self, size = size, caption = caption, max_fps = max_fps)
+
+	def repeat_func(self):
+		if not (self.tick+1)%150:
+			return False
 		return True
 
+
 if __name__ == '__main__':
-	canvas = Canvas()
+	canvas = CanvasExample()
 	canvas.start()
 
